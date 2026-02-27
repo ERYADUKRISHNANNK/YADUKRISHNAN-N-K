@@ -1,0 +1,7 @@
+{
+  "name": "Remix: Remix: AirGuard - Live Air Quality \u0026 Carbon Tracker",
+  "description": "A sophisticated air quality monitoring and carbon footprint tracking application featuring real-time analytics, personalized reduction tips, and emergency alert protocols.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
