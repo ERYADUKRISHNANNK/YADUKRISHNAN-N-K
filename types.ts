@@ -10,7 +10,16 @@ export enum Screen {
   AUTH = 'AUTH',
   COMMUNITY = 'COMMUNITY',
   STUDY = 'STUDY',
-  GAME = 'GAME'
+  GAME = 'GAME',
+  ADMIN = 'ADMIN'
+}
+
+export interface Comment {
+  id: string;
+  userId: string;
+  userName: string;
+  text: string;
+  timestamp: number;
 }
 
 export interface PollutionReport {
@@ -25,13 +34,7 @@ export interface PollutionReport {
   imageUrl?: string;
   timestamp: number;
   likes: number;
-  comments: {
-    id: string;
-    userId: string;
-    userName: string;
-    text: string;
-    timestamp: number;
-  }[];
+  comments: Comment[];
 }
 
 export interface NotificationSettings {
@@ -55,14 +58,43 @@ export interface HealthDetails {
   ageGroup: string;
 }
 
+export interface PreferredLocation {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  alertThreshold: number;
+}
+
 export interface User {
+  uid?: string;
   name: string;
   email: string;
   avatar: string;
+  bio?: string;
   isLoggedIn: boolean;
   notificationSettings: NotificationSettings;
   healthDetails?: HealthDetails;
   location?: string;
+  role?: 'user' | 'admin';
+  preferredLocations?: PreferredLocation[];
+}
+
+export interface AdminStats {
+  activeUsers: number;
+  totalReports: number;
+  avgAqi: number;
+  systemHealth: 'Healthy' | 'Warning' | 'Critical';
+  lastBackup: number;
+}
+
+export interface AdminBroadcast {
+  id: string;
+  title: string;
+  message: string;
+  target: 'all' | 'high-pollution-areas';
+  timestamp: number;
+  sentBy: string;
 }
 
 export interface LocationData {
@@ -98,6 +130,14 @@ export interface AppNotification {
   title: string;
   message: string;
   timestamp: number;
+}
+
+export interface StudyNote {
+  id: string;
+  userId: string;
+  text: string;
+  timestamp: number;
+  pageIndex: number;
 }
 
 export interface ReductionTip {

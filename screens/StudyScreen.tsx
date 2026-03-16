@@ -1,10 +1,62 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Book, ChevronLeft, ChevronRight, Info, AlertTriangle, CheckCircle2, Leaf, Factory, Wind } from 'lucide-react';
+import { Book, ChevronLeft, ChevronRight, Info, AlertTriangle, CheckCircle2, Leaf, Factory, Wind, Save, Trash2, Edit3 } from 'lucide-react';
+import { db, auth } from '../firebase';
+import { collection, addDoc, query, where, onSnapshot, deleteDoc, doc, orderBy } from 'firebase/firestore';
+import { StudyNote } from '../types';
 
 const StudyScreen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const [currentPage, setCurrentPage] = useState(0);
+  const [notes, setNotes] = useState<StudyNote[]>([]);
+  const [newNote, setNewNote] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (!auth.currentUser) return;
+
+    const q = query(
+      collection(db, 'studyNotes'),
+      where('userId', '==', auth.currentUser.uid),
+      orderBy('timestamp', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const notesData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as StudyNote[];
+      setNotes(notesData);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleSaveNote = async () => {
+    if (!newNote.trim() || !auth.currentUser) return;
+    setIsSaving(true);
+    try {
+      await addDoc(collection(db, 'studyNotes'), {
+        userId: auth.currentUser.uid,
+        text: newNote,
+        pageIndex: currentPage,
+        timestamp: Date.now()
+      });
+      setNewNote('');
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteNote = async (noteId: string) => {
+    try {
+      await deleteDoc(doc(db, 'studyNotes', noteId));
+    } catch (error) {
+      console.error(error);
+    }
+  };
 
   const pages = [
     {
@@ -72,8 +124,8 @@ const StudyScreen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
           <ChevronLeft className="w-6 h-6 text-slate-600" />
         </button>
         <div>
-          <h1 className="text-2xl font-black text-slate-900 leading-none">Environmental Study</h1>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Reference Book & Research</p>
+          <h1 className="text-2xl font-black text-slate-900 leading-none">Environmental Notes</h1>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Research & Annotations</p>
         </div>
       </header>
 
@@ -143,14 +195,65 @@ const StudyScreen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         </button>
       </div>
 
-      <div className="mt-12 p-6 bg-slate-900 rounded-[2.5rem] text-white shadow-xl">
-        <div className="flex items-center gap-3 mb-4">
-          <Info className="w-5 h-5 text-primary" />
-          <h3 className="text-sm font-black uppercase tracking-widest">Notes</h3>
+      <div className="mt-12 space-y-6">
+        <div className="p-6 bg-slate-900 rounded-[2.5rem] text-white shadow-xl">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <Edit3 className="w-5 h-5 text-primary" />
+              <h3 className="text-sm font-black uppercase tracking-widest">Add Annotation</h3>
+            </div>
+            <button 
+              onClick={handleSaveNote}
+              disabled={!newNote.trim() || isSaving}
+              className="p-2 bg-primary rounded-xl disabled:opacity-50 hover:scale-105 transition-all"
+            >
+              {isSaving ? (
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Save className="w-4 h-4" />
+              )}
+            </button>
+          </div>
+          <textarea 
+            value={newNote}
+            onChange={(e) => setNewNote(e.target.value)}
+            placeholder={`Add a note for "${pages[currentPage].title}"...`}
+            className="w-full bg-white/10 rounded-2xl p-4 text-xs font-medium text-white outline-none focus:ring-2 focus:ring-primary/40 resize-none h-24"
+          />
         </div>
-        <p className="text-[10px] text-white/60 leading-relaxed font-medium italic">
-          "The anthropogenic impact on tropospheric composition is primarily driven by fossil fuel combustion and biomass burning, leading to significant radiative forcing and climate feedback loops..."
-        </p>
+
+        <div className="space-y-4">
+          <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-4">My Research Notes</h3>
+          <div className="grid gap-4">
+            {notes.filter(n => n.pageIndex === currentPage).length === 0 ? (
+              <div className="p-8 text-center bg-white rounded-[2rem] border border-dashed border-slate-200">
+                <p className="text-xs font-bold text-slate-400">No notes for this section yet.</p>
+              </div>
+            ) : (
+              notes.filter(n => n.pageIndex === currentPage).map(note => (
+                <motion.div 
+                  key={note.id}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="p-5 bg-white rounded-[2rem] shadow-sm border border-slate-100 flex justify-between items-start gap-4"
+                >
+                  <div className="flex-1">
+                    <p className="text-xs font-medium text-slate-600 leading-relaxed">{note.text}</p>
+                    <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest mt-2">
+                      {new Date(note.timestamp).toLocaleDateString()} • {new Date(note.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                  <button 
+                    onClick={() => handleDeleteNote(note.id)}
+                    className="p-2 text-slate-300 hover:text-rose-500 transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </motion.div>
+              ))
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

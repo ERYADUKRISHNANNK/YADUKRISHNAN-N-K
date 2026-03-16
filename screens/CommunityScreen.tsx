@@ -1,8 +1,20 @@
 
-import React, { useState } from 'react';
-import { User, PollutionReport, AppNotification } from '../types';
+import React, { useState, useEffect } from 'react';
+import { User, PollutionReport, AppNotification, Comment } from '../types';
+import { db, auth } from '../firebase';
+import { 
+  collection, 
+  addDoc, 
+  query, 
+  orderBy, 
+  onSnapshot, 
+  updateDoc, 
+  doc, 
+  arrayUnion, 
+  increment 
+} from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
-import { MessageSquare, Heart, Share2, MapPin, Camera, Send, AlertTriangle, User as UserIcon } from 'lucide-react';
+import { MessageSquare, Heart, Share2, MapPin, Camera, Send, AlertTriangle, User as UserIcon, X, Image as ImageIcon } from 'lucide-react';
 
 interface CommunityScreenProps {
   user: User;
@@ -10,70 +22,92 @@ interface CommunityScreenProps {
 }
 
 const CommunityScreen: React.FC<CommunityScreenProps> = ({ user, onAddNotification }) => {
-  const [reports, setReports] = useState<PollutionReport[]>([
-    {
-      id: '1',
-      userId: 'user1',
-      userName: 'Sarah Chen',
-      userAvatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150&h=150',
-      locationName: 'Industrial Zone, East Side',
-      lat: 37.78,
-      lng: -122.40,
-      description: 'Heavy black smoke coming from the factory chimneys this morning. The air smells like sulfur.',
-      imageUrl: 'https://images.unsplash.com/photo-1521490683712-35a1cb235d1c?auto=format&fit=crop&q=80&w=800',
-      timestamp: Date.now() - 3600000,
-      likes: 24,
-      comments: [
-        { id: 'c1', userId: 'user2', userName: 'John D.', text: 'I noticed this too. It is getting worse every week.', timestamp: Date.now() - 1800000 }
-      ]
-    },
-    {
-      id: '2',
-      userId: 'user3',
-      userName: 'Marcus Wu',
-      userAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=150&h=150',
-      locationName: 'Downtown Intersection',
-      lat: 37.77,
-      lng: -122.42,
-      description: 'Traffic congestion is causing visible smog today. Avoid walking through here if you have asthma.',
-      timestamp: Date.now() - 7200000,
-      likes: 12,
-      comments: []
-    }
-  ]);
-
+  const [reports, setReports] = useState<PollutionReport[]>([]);
   const [newReportText, setNewReportText] = useState('');
+  const [newReportImage, setNewReportImage] = useState('');
   const [isReporting, setIsReporting] = useState(false);
+  const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
+  const [commentText, setCommentText] = useState('');
 
-  const handleLike = (reportId: string) => {
-    setReports(prev => prev.map(r => r.id === reportId ? { ...r, likes: r.likes + 1 } : r));
+  useEffect(() => {
+    const q = query(collection(db, 'pollutionReports'), orderBy('timestamp', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const reportsData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as PollutionReport[];
+      setReports(reportsData);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleLike = async (reportId: string) => {
+    try {
+      const reportRef = doc(db, 'pollutionReports', reportId);
+      await updateDoc(reportRef, {
+        likes: increment(1)
+      });
+    } catch (error) {
+      console.error(error);
+    }
   };
 
-  const handleAddReport = () => {
+  const handleAddComment = async (reportId: string) => {
+    if (!commentText.trim()) return;
+
+    try {
+      const reportRef = doc(db, 'pollutionReports', reportId);
+      const newComment: Comment = {
+        id: Math.random().toString(36).substring(7),
+        userId: auth.currentUser?.uid || 'anonymous',
+        userName: user.name,
+        text: commentText,
+        timestamp: Date.now()
+      };
+
+      await updateDoc(reportRef, {
+        comments: arrayUnion(newComment)
+      });
+
+      setCommentText('');
+      setActiveCommentId(null);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const handleAddReport = async () => {
     if (!newReportText.trim()) return;
 
-    const newReport: PollutionReport = {
-      id: Math.random().toString(36).substring(7),
-      userId: 'current-user',
-      userName: user.name,
-      userAvatar: user.avatar,
-      locationName: 'Current Location',
-      lat: 0,
-      lng: 0,
-      description: newReportText,
-      timestamp: Date.now(),
-      likes: 0,
-      comments: []
-    };
+    try {
+      const newReport: Omit<PollutionReport, 'id'> = {
+        userId: auth.currentUser?.uid || 'anonymous',
+        userName: user.name,
+        userAvatar: user.avatar,
+        locationName: user.location || 'Unknown Location',
+        lat: 0,
+        lng: 0,
+        description: newReportText,
+        imageUrl: newReportImage || undefined,
+        timestamp: Date.now(),
+        likes: 0,
+        comments: []
+      };
 
-    setReports([newReport, ...reports]);
-    setNewReportText('');
-    setIsReporting(false);
-    onAddNotification({
-      type: 'success',
-      title: 'Report Published',
-      message: 'Your pollution report has been shared with the community.'
-    });
+      await addDoc(collection(db, 'pollutionReports'), newReport);
+      
+      setNewReportText('');
+      setNewReportImage('');
+      setIsReporting(false);
+      onAddNotification({
+        type: 'success',
+        title: 'Report Published',
+        message: 'Your pollution report has been shared with the community.'
+      });
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   return (
@@ -107,23 +141,43 @@ const CommunityScreen: React.FC<CommunityScreenProps> = ({ user, onAddNotificati
                   initial={{ height: 0, opacity: 0 }}
                   animate={{ height: 'auto', opacity: 1 }}
                   exit={{ height: 0, opacity: 0 }}
-                  className="flex items-center justify-between mt-4"
+                  className="space-y-4 mt-4"
                 >
-                  <div className="flex gap-2">
-                    <button className="p-2 bg-slate-50 rounded-xl text-slate-400 hover:text-primary transition-colors">
-                      <Camera className="w-5 h-5" />
-                    </button>
-                    <button className="p-2 bg-slate-50 rounded-xl text-slate-400 hover:text-primary transition-colors">
-                      <MapPin className="w-5 h-5" />
-                    </button>
+                  <div className="flex items-center gap-2 bg-slate-50 rounded-xl px-3 py-2 border border-slate-100">
+                    <ImageIcon className="w-4 h-4 text-slate-400" />
+                    <input 
+                      type="text" 
+                      placeholder="Paste image URL (optional)"
+                      value={newReportImage}
+                      onChange={(e) => setNewReportImage(e.target.value)}
+                      className="bg-transparent text-xs font-medium text-slate-600 outline-none w-full"
+                    />
                   </div>
-                  <button 
-                    onClick={handleAddReport}
-                    disabled={!newReportText.trim()}
-                    className="bg-primary text-white px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-2 disabled:opacity-50"
-                  >
-                    Post <Send className="w-3 h-3" />
-                  </button>
+                  <div className="flex items-center justify-between">
+                    <div className="flex gap-2">
+                      <button className="p-2 bg-slate-50 rounded-xl text-slate-400 hover:text-primary transition-colors">
+                        <Camera className="w-5 h-5" />
+                      </button>
+                      <button className="p-2 bg-slate-50 rounded-xl text-slate-400 hover:text-primary transition-colors">
+                        <MapPin className="w-5 h-5" />
+                      </button>
+                    </div>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => setIsReporting(false)}
+                        className="px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest text-slate-400 hover:bg-slate-50"
+                      >
+                        Cancel
+                      </button>
+                      <button 
+                        onClick={handleAddReport}
+                        disabled={!newReportText.trim()}
+                        className="bg-primary text-white px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-2 disabled:opacity-50"
+                      >
+                        Post <Send className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -180,10 +234,13 @@ const CommunityScreen: React.FC<CommunityScreenProps> = ({ user, onAddNotificati
                   onClick={() => handleLike(report.id)}
                   className="flex items-center gap-1.5 text-slate-400 hover:text-rose-500 transition-colors"
                 >
-                  <Heart className={`w-4 h-4 ${report.likes > 24 ? 'fill-rose-500 text-rose-500' : ''}`} />
+                  <Heart className={`w-4 h-4 ${report.likes > 0 ? 'fill-rose-500 text-rose-500' : ''}`} />
                   <span className="text-xs font-bold">{report.likes}</span>
                 </button>
-                <button className="flex items-center gap-1.5 text-slate-400 hover:text-primary transition-colors">
+                <button 
+                  onClick={() => setActiveCommentId(activeCommentId === report.id ? null : report.id)}
+                  className="flex items-center gap-1.5 text-slate-400 hover:text-primary transition-colors"
+                >
                   <MessageSquare className="w-4 h-4" />
                   <span className="text-xs font-bold">{report.comments.length}</span>
                 </button>
@@ -192,6 +249,50 @@ const CommunityScreen: React.FC<CommunityScreenProps> = ({ user, onAddNotificati
                 <Share2 className="w-4 h-4" />
               </button>
             </div>
+
+            <AnimatePresence>
+              {activeCommentId === report.id && (
+                <motion.div 
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="mt-4 pt-4 border-t border-slate-50 space-y-4"
+                >
+                  <div className="space-y-3">
+                    {report.comments.map(comment => (
+                      <div key={comment.id} className="flex gap-2">
+                        <div className="w-6 h-6 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
+                          <UserIcon className="w-3 h-3 text-slate-400" />
+                        </div>
+                        <div className="bg-slate-50 rounded-2xl p-3 flex-1">
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="text-[10px] font-black text-slate-900">{comment.userName}</span>
+                            <span className="text-[8px] text-slate-400">{new Date(comment.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          </div>
+                          <p className="text-xs text-slate-600">{comment.text}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <input 
+                      type="text"
+                      placeholder="Add a comment..."
+                      value={commentText}
+                      onChange={(e) => setCommentText(e.target.value)}
+                      className="flex-1 bg-slate-50 rounded-xl px-4 py-2 text-xs font-medium outline-none focus:ring-2 focus:ring-primary/20"
+                    />
+                    <button 
+                      onClick={() => handleAddComment(report.id)}
+                      className="p-2 bg-primary text-white rounded-xl hover:scale-105 active:scale-95 transition-all"
+                    >
+                      <Send className="w-4 h-4" />
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         ))}
       </div>

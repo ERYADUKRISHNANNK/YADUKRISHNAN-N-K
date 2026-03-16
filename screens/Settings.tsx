@@ -176,6 +176,32 @@ const Settings: React.FC<SettingsProps> = ({ settings, onUpdate, onBack }) => {
           </div>
         </section>
 
+        {/* Support & Contact Section */}
+        <section>
+          <h3 className="text-slate-500 dark:text-primary/80 text-[10px] font-bold uppercase tracking-wider px-2 mb-2">Support & Contact</h3>
+          <div className="bg-white dark:bg-white/5 rounded-2xl overflow-hidden shadow-sm border border-black/5">
+            <div className="flex items-center gap-3 px-4 py-4 border-b border-black/5">
+              <div className="text-blue-500 bg-blue-500/10 size-10 rounded-xl flex items-center justify-center">
+                <span className="material-symbols-outlined">mail</span>
+              </div>
+              <div className="flex flex-col">
+                <p className="text-sm font-semibold">Email Support</p>
+                <a href="mailto:eryadukrishnannnk@gmail.com" className="text-primary text-[10px] font-bold">eryadukrishnannnk@gmail.com</a>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 px-4 py-4">
+              <div className="text-green-500 bg-green-500/10 size-10 rounded-xl flex items-center justify-center">
+                <span className="material-symbols-outlined">call</span>
+              </div>
+              <div className="flex flex-col">
+                <p className="text-sm font-semibold">Phone Support</p>
+                <a href="tel:+919207736483" className="text-primary text-[10px] font-bold">+91 9207736483</a>
+              </div>
+            </div>
+          </div>
+          <p className="px-2 mt-2 text-[10px] text-slate-500 italic text-center">Contact the owner for advanced features and system inquiries.</p>
+        </section>
+
         <button 
           onClick={handleSave}
           className="w-full py-4 mt-4 rounded-2xl bg-primary text-white font-bold text-base shadow-lg shadow-primary/20"

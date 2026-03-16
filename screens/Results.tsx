@@ -23,10 +23,10 @@ const Results: React.FC<ResultsProps> = ({ result, onBack }) => {
     { name: 'Energy Source', value: result.breakdown.energySource, color: '#93c5fd' },
   ];
 
-  // Determine status based on totalTons
-  const getStatus = (tons: number) => {
-    if (tons < 2.0) return { label: 'Eco Guardian', color: 'text-emerald-500', bg: 'bg-emerald-50' };
-    if (tons < 4.0) return { label: 'Active Reducer', color: 'text-primary', bg: 'bg-primary/10' };
+  // Determine status based on daily kg
+  const getStatus = (kg: number) => {
+    if (kg < 5.0) return { label: 'Eco Guardian', color: 'text-emerald-500', bg: 'bg-emerald-50' };
+    if (kg < 15.0) return { label: 'Active Reducer', color: 'text-primary', bg: 'bg-primary/10' };
     return { label: 'High Impact', color: 'text-rose-500', bg: 'bg-rose-50' };
   };
 
@@ -71,13 +71,13 @@ const Results: React.FC<ResultsProps> = ({ result, onBack }) => {
                   <h1 className="text-[10rem] font-black leading-none tracking-tighter bg-gradient-to-b from-pale-blue-900 via-primary to-blue-400 bg-clip-text text-transparent drop-shadow-2xl">
                     {result.totalTons}
                   </h1>
-                  <span className="text-4xl font-black text-slate-300 -ml-2 mb-4">T</span>
+                  <span className="text-4xl font-black text-slate-300 -ml-2 mb-4">kg</span>
                 </div>
                 <div className="mt-[-2rem] flex flex-col items-center">
-                  <p className="text-slate-800 font-bold text-xl tracking-tight">Annual Carbon Footprint</p>
+                  <p className="text-slate-800 font-bold text-xl tracking-tight">Daily Carbon Footprint</p>
                   <p className="text-slate-400 text-xs font-semibold mt-1 flex items-center gap-1.5">
                     <span className="material-symbols-outlined text-sm">schedule</span>
-                    Estimated per year
+                    Estimated per day
                   </p>
                 </div>
               </div>

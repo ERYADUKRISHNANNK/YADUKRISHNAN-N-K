@@ -1,0 +1,151 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Stores user profile information, settings, and health details.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "avatar": { "type": "string" },
+        "bio": { "type": "string" },
+        "location": { "type": "string" },
+        "notificationSettings": {
+          "type": "object",
+          "properties": {
+            "emergencyAlerts": { "type": "boolean" },
+            "aqiChanges": { "type": "boolean" },
+            "carbonMilestones": { "type": "boolean" },
+            "weeklyReports": { "type": "boolean" },
+            "healthTips": { "type": "boolean" },
+            "quietHours": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "from": { "type": "string" },
+                "to": { "type": "string" }
+              }
+            },
+            "alertSound": { "type": "string", "enum": ["Siren", "Pulse", "Chime"] }
+          }
+        },
+        "healthDetails": {
+          "type": "object",
+          "properties": {
+            "hasAsthma": { "type": "boolean" },
+            "respiratoryConditions": { "type": "array", "items": { "type": "string" } },
+            "pollutionSensitivity": { "type": "string", "enum": ["Low", "Medium", "High"] },
+            "ageGroup": { "type": "string" }
+          }
+        },
+        "preferredLocations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "lat": { "type": "number" },
+              "lng": { "type": "number" },
+              "alertThreshold": { "type": "number" }
+            }
+          }
+        },
+        "role": { "type": "string", "enum": ["user", "admin"] }
+      },
+      "required": ["uid", "name", "email"]
+    },
+    "AdminBroadcast": {
+      "title": "Admin Broadcast",
+      "description": "System-wide notifications sent by admins.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "target": { "type": "string", "enum": ["all", "high-pollution-areas"] },
+        "timestamp": { "type": "number" },
+        "sentBy": { "type": "string" }
+      },
+      "required": ["title", "message", "timestamp", "sentBy"]
+    },
+    "SystemStats": {
+      "title": "System Stats",
+      "description": "Real-time system monitoring data.",
+      "type": "object",
+      "properties": {
+        "activeUsers": { "type": "number" },
+        "totalReports": { "type": "number" },
+        "avgAqi": { "type": "number" },
+        "systemHealth": { "type": "string", "enum": ["Healthy", "Warning", "Critical"] },
+        "lastBackup": { "type": "number" }
+      }
+    },
+    "PollutionReport": {
+      "title": "Pollution Report",
+      "description": "A report of a polluted area submitted by a user.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userAvatar": { "type": "string" },
+        "locationName": { "type": "string" },
+        "lat": { "type": "number" },
+        "lng": { "type": "number" },
+        "description": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "likes": { "type": "number" },
+        "comments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "userId": { "type": "string" },
+              "userName": { "type": "string" },
+              "text": { "type": "string" },
+              "timestamp": { "type": "number" }
+            }
+          }
+        }
+      },
+      "required": ["userId", "description", "timestamp"]
+    },
+    "StudyNote": {
+      "title": "Study Note",
+      "description": "Personal notes added by a user to a study topic.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "topicId": { "type": "string" },
+        "content": { "type": "string" },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["userId", "topicId", "content", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "User",
+      "description": "User profiles indexed by UID."
+    },
+    "/pollutionReports/{reportId}": {
+      "schema": "PollutionReport",
+      "description": "Community pollution reports."
+    },
+    "/studyNotes/{noteId}": {
+      "schema": "StudyNote",
+      "description": "User study notes."
+    },
+    "/adminBroadcasts/{broadcastId}": {
+      "schema": "AdminBroadcast",
+      "description": "System-wide broadcasts."
+    },
+    "/system/stats": {
+      "schema": "SystemStats",
+      "description": "Global system statistics."
+    }
+  }
+}

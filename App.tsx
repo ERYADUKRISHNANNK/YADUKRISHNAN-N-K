@@ -11,10 +11,14 @@ import Auth from './screens/Auth';
 import CommunityScreen from './screens/CommunityScreen';
 import StudyScreen from './screens/StudyScreen';
 import GameScreen from './screens/GameScreen';
+import AdminDashboard from './screens/AdminDashboard';
 import EmergencyOverlay from './screens/EmergencyOverlay';
 import BottomNav from './components/BottomNav';
 import NotificationSystem from './components/NotificationSystem';
 import ChatBot from './components/ChatBot';
+import { auth, db } from './firebase';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
 
 const App: React.FC = () => {
@@ -40,8 +44,8 @@ const App: React.FC = () => {
     setNotifications(prev => prev.filter(n => n.id !== id));
   };
   const [user, setUser] = useState<User>({
-    name: 'Alex Rivera',
-    email: 'alex.rivera@gmail.com',
+    name: 'Guest',
+    email: '',
     avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=150&h=150',
     isLoggedIn: false,
     notificationSettings: {
@@ -59,7 +63,80 @@ const App: React.FC = () => {
     }
   });
 
-  const handleUpdateNotificationSettings = (settings: NotificationSettings) => {
+  const [results, setResults] = useState<FootprintResult | null>(null);
+  const [isAuthReady, setIsAuthReady] = useState(false);
+
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    const saved = localStorage.getItem('darkMode');
+    return saved ? JSON.parse(saved) : false;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('darkMode', JSON.stringify(isDarkMode));
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [isDarkMode]);
+
+  // Offline Caching
+  useEffect(() => {
+    if (results) {
+      localStorage.setItem('lastFootprintResult', JSON.stringify(results));
+    }
+  }, [results]);
+
+  useEffect(() => {
+    const cached = localStorage.getItem('lastFootprintResult');
+    if (cached && !results) {
+      setResults(JSON.parse(cached));
+    }
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        // Fetch user profile from Firestore
+        const userRef = doc(db, 'users', firebaseUser.uid);
+        const userSnap = await getDoc(userRef);
+        
+        if (userSnap.exists()) {
+          setUser(userSnap.data() as User);
+        } else {
+          // Create default profile if not exists
+          const newUser: User = {
+            uid: firebaseUser.uid,
+            name: firebaseUser.displayName || 'New User',
+            email: firebaseUser.email || '',
+            avatar: firebaseUser.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=150&h=150',
+            isLoggedIn: true,
+            notificationSettings: {
+              emergencyAlerts: true,
+              aqiChanges: true,
+              carbonMilestones: true,
+              weeklyReports: true,
+              healthTips: true,
+              quietHours: { enabled: true, from: '22:00', to: '07:00' },
+              alertSound: 'Chime'
+            }
+          };
+          await setDoc(userRef, newUser);
+          setUser(newUser);
+        }
+      } else {
+        setUser(prev => ({ ...prev, isLoggedIn: false }));
+      }
+      setIsAuthReady(true);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleUpdateNotificationSettings = async (settings: NotificationSettings) => {
+    if (!auth.currentUser) return;
+    const userRef = doc(db, 'users', auth.currentUser.uid);
+    await setDoc(userRef, { notificationSettings: settings }, { merge: true });
     setUser(prev => ({
       ...prev,
       notificationSettings: settings
@@ -82,8 +159,6 @@ const App: React.FC = () => {
     co2Rate: 0.45,
     gasLevels: 0
   });
-
-  const [results, setResults] = useState<FootprintResult | null>(null);
 
   useEffect(() => {
     if (navigator.geolocation) {
@@ -110,16 +185,20 @@ const App: React.FC = () => {
 
   const handleCalculate = (data: ImpactData) => {
     setImpactData(data);
+    // Calculations for daily footprint in kgCO2
     const acImpact = data.acUnits * 1.5 * data.co2Rate;
     const fanImpact = data.fanUsage * 0.1 * data.co2Rate;
-    const total = 2.0 + acImpact + fanImpact;
+    const gasImpact = data.gasLevels * 2.1; // Average kgCO2 per unit of gas
+    const baseImpact = 2.0; // Base daily impact (food, waste, etc.)
+    
+    const total = baseImpact + acImpact + fanImpact + gasImpact;
     
     setResults({
-      totalTons: parseFloat(total.toFixed(1)),
+      totalTons: parseFloat(total.toFixed(2)), // Showing as kg for daily, or keep as "units"
       breakdown: {
         acUsage: Math.round((acImpact / total) * 100),
-        gasEmissions: Math.round((data.gasLevels / total) * 100) || 15,
-        energySource: 100 - (Math.round((acImpact / total) * 100) + 15)
+        gasEmissions: Math.round((gasImpact / total) * 100),
+        energySource: 100 - (Math.round((acImpact / total) * 100) + Math.round((gasImpact / total) * 100))
       }
     });
     setCurrentScreen(Screen.RESULTS);
@@ -130,17 +209,17 @@ const App: React.FC = () => {
   };
 
   const handleLogin = (userData: User) => {
-    setUser(userData);
+    // This is now handled by onAuthStateChanged
     addNotification({
       type: 'success',
-      title: 'Welcome Back!',
+      title: 'Welcome!',
       message: `Logged in as ${userData.name}. Your health profile is active.`
     });
     setCurrentScreen(Screen.DASHBOARD);
   };
 
-  const handleLogout = () => {
-    setUser(prev => ({ ...prev, isLoggedIn: false }));
+  const handleLogout = async () => {
+    await signOut(auth);
     setCurrentScreen(Screen.AUTH);
   };
 
@@ -162,8 +241,11 @@ const App: React.FC = () => {
           location={location}
           onLocationChange={handleLocationChange}
           onShowEmergency={() => setShowEmergency(true)} 
-          onViewImpact={() => setCurrentScreen(Screen.RESULTS)}
+          onViewImpact={() => setCurrentScreen(results ? Screen.RESULTS : Screen.CALCULATOR)}
           onProfileClick={() => setCurrentScreen(Screen.PROFILE)}
+          isDarkMode={isDarkMode}
+          onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
+          onAddNotification={addNotification}
         />;
       case Screen.MAP:
         return <MapScreen 
@@ -195,6 +277,7 @@ const App: React.FC = () => {
           user={user} 
           onBack={() => setCurrentScreen(Screen.DASHBOARD)} 
           onLogout={handleLogout}
+          onAddNotification={addNotification}
         />;
       case Screen.COMMUNITY:
         return <CommunityScreen 
@@ -205,14 +288,20 @@ const App: React.FC = () => {
         return <StudyScreen onBack={() => setCurrentScreen(Screen.DASHBOARD)} />;
       case Screen.GAME:
         return <GameScreen onBack={() => setCurrentScreen(Screen.DASHBOARD)} />;
+      case Screen.ADMIN:
+        return <AdminDashboard onBack={() => setCurrentScreen(Screen.DASHBOARD)} />;
       default:
         return <Dashboard 
           user={user}
           location={location}
           onLocationChange={handleLocationChange}
           onShowEmergency={() => setShowEmergency(true)} 
-          onViewImpact={() => setCurrentScreen(Screen.RESULTS)} 
+          onViewImpact={() => setCurrentScreen(results ? Screen.RESULTS : Screen.CALCULATOR)} 
           onProfileClick={() => setCurrentScreen(Screen.PROFILE)}
+          onAdminClick={() => setCurrentScreen(Screen.ADMIN)}
+          isDarkMode={isDarkMode}
+          onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
+          onAddNotification={addNotification}
         />;
     }
   };

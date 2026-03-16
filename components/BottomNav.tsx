@@ -1,5 +1,6 @@
 
 import React from 'react';
+import { motion } from 'motion/react';
 import { Screen } from '../types';
 
 interface BottomNavProps {
@@ -59,10 +60,24 @@ const BottomNav: React.FC<BottomNavProps> = ({ currentScreen, onNavigate }) => {
 const NavButton: React.FC<{ icon: string, label: string, isActive: boolean, onClick: () => void }> = ({ icon, label, isActive, onClick }) => (
   <button 
     onClick={onClick}
-    className={`flex flex-col items-center gap-1 transition-colors ${isActive ? 'text-primary' : 'text-slate-400'}`}
+    className={`flex flex-col items-center gap-1 transition-all relative px-2 py-1 rounded-xl ${isActive ? 'text-primary' : 'text-slate-400 hover:text-slate-600'}`}
   >
-    <span className={`material-symbols-outlined ${isActive ? 'fill-icon' : ''}`}>{icon}</span>
-    <span className="text-[9px] font-bold">{label}</span>
+    {isActive && (
+      <motion.div 
+        layoutId="activeTab"
+        className="absolute inset-0 bg-primary/5 rounded-xl -z-10"
+        transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+      />
+    )}
+    <span className={`material-symbols-outlined ${isActive ? 'fill-icon scale-110' : 'scale-100'} transition-transform`}>{icon}</span>
+    <span className={`text-[8px] font-black uppercase tracking-tighter ${isActive ? 'opacity-100' : 'opacity-60'}`}>{label}</span>
+    {isActive && (
+      <motion.div 
+        layoutId="activeUnderline"
+        className="absolute -bottom-1 w-4 h-0.5 bg-primary rounded-full"
+        transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+      />
+    )}
   </button>
 );
 

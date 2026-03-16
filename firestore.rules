@@ -1,0 +1,136 @@
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {uid}
+    // Fields:
+    //   - uid: string (required)
+    //   - name: string (required)
+    //   - email: string (required)
+    //   - avatar: string
+    //   - bio: string
+    //   - location: string
+    //   - notificationSettings: map
+    //   - healthDetails: map
+    //
+    // Collection: pollutionReports
+    // Document ID: {reportId}
+    // Fields:
+    //   - userId: string (required)
+    //   - userName: string
+    //   - userAvatar: string
+    //   - locationName: string
+    //   - lat: number
+    //   - lng: number
+    //   - description: string (required)
+    //   - imageUrl: string
+    //   - timestamp: number (required)
+    //   - likes: number
+    //   - comments: list
+    //
+    // Collection: studyNotes
+    // Document ID: {noteId}
+    // Fields:
+    //   - userId: string (required)
+    //   - topicId: string (required)
+    //   - content: string (required)
+    //   - timestamp: number (required)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "eryadukrishnannk@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // ===============================================================
+    // Collection Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      function isValidUser(data) {
+        return data.uid is string &&
+               data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+               isValidEmail(data.email) &&
+               (!('avatar' in data) || (data.avatar is string && data.avatar.size() < 500000)) &&
+               (!('bio' in data) || (data.bio is string && data.bio.size() < 500)) &&
+               (!('location' in data) || (data.location is string && data.location.size() < 200)) &&
+               (!('preferredLocations' in data) || data.preferredLocations is list) &&
+               (!('role' in data) || data.role in ['user', 'admin']);
+      }
+
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && (!('role' in request.resource.data) || request.resource.data.role == 'user');
+      allow update: if (isOwner(userId) || isAdmin()) && isValidUser(request.resource.data) && (request.resource.data.role == resource.data.role || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /adminBroadcasts/{broadcastId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /system/stats {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    match /pollutionReports/{reportId} {
+      function isValidReport(data) {
+        return data.userId is string &&
+               data.description is string && data.description.size() > 0 && data.description.size() < 2000 &&
+               data.timestamp is number &&
+               (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() < 1000)) &&
+               (!('likes' in data) || data.likes is number) &&
+               (!('comments' in data) || data.comments is list);
+      }
+
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId && isValidReport(request.resource.data);
+      allow update: if isAuthenticated() && (
+        (request.auth.uid == resource.data.userId && isValidReport(request.resource.data)) ||
+        (hasOnlyAllowedFields(resource.data.keys().concat(['likes', 'comments'])) && isValidReport(request.resource.data))
+      );
+      allow delete: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin());
+    }
+
+    match /studyNotes/{noteId} {
+      function isValidNote(data) {
+        return data.userId is string &&
+               data.topicId is string &&
+               data.content is string && data.content.size() > 0 && data.content.size() < 5000 &&
+               data.timestamp is number;
+      }
+
+      allow read: if isAuthenticated() && request.auth.uid == resource.data.userId;
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId && isValidNote(request.resource.data);
+      allow update: if isAuthenticated() && request.auth.uid == resource.data.userId && isValidNote(request.resource.data);
+      allow delete: if isAuthenticated() && request.auth.uid == resource.data.userId;
+    }
+  }
+}

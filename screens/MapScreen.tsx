@@ -5,7 +5,7 @@ import { GoogleGenAI } from "@google/genai";
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, Legend } from 'recharts';
 import { useDebounce } from '../hooks/useDebounce';
 import { motion, AnimatePresence } from 'motion/react';
-import { Wind, Navigation, MapPin, Search, Layers, Cloud, History, Info, Volume2, Mic } from 'lucide-react';
+import { Wind, Navigation, MapPin, Search, Layers, Cloud, History, Info, Volume2, Mic, X } from 'lucide-react';
 
 // Declare L for Leaflet global from script tag
 declare const L: any;
@@ -315,13 +315,33 @@ const MapScreen: React.FC<MapScreenProps> = ({ currentLocation, onLocationSelect
   };
 
   const createMarkerHtml = (color: string, aqi: number, label: string) => `
-    <div class="marker-info-bubble" style="--marker-color: ${color}">
+    <div class="marker-info-bubble pulse-marker" style="--marker-color: ${color}">
       <div class="bubble-content">
         <span class="bubble-label">${label}</span>
         <span class="bubble-aqi">${aqi}</span>
       </div>
       <div class="bubble-tail"></div>
     </div>
+    <style>
+      @keyframes pulse-ring {
+        0% { transform: scale(.33); opacity: 1; }
+        80%, 100% { opacity: 0; }
+      }
+      .pulse-marker::before {
+        content: '';
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        background-color: var(--marker-color);
+        opacity: 0.2;
+        animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+        z-index: -1;
+      }
+    </style>
   `;
 
   const speakLocation = (name: string, aqi: number) => {
@@ -333,9 +353,14 @@ const MapScreen: React.FC<MapScreenProps> = ({ currentLocation, onLocationSelect
     window.speechSynthesis.speak(utterance);
   };
 
+  const [pingPosition, setPingPosition] = useState<{ lat: number, lng: number } | null>(null);
+
   const updateLocation = (lat: number, lng: number, name?: string, shouldPan = false) => {
     if (!mapRef.current) return;
     
+    setPingPosition({ lat, lng });
+    setTimeout(() => setPingPosition(null), 1000);
+
     setSelectedCoords({ lat, lng });
     if (selectionMarkerRef.current) selectionMarkerRef.current.setLatLng([lat, lng]);
     if (selectionCircleRef.current) selectionCircleRef.current.setLatLng([lat, lng]);
@@ -536,6 +561,24 @@ const MapScreen: React.FC<MapScreenProps> = ({ currentLocation, onLocationSelect
 
       <div ref={mapContainerRef} className="h-full w-full z-0" />
 
+      {/* Ping Animation Overlay */}
+      <AnimatePresence>
+        {pingPosition && (
+          <motion.div
+            initial={{ scale: 0, opacity: 1 }}
+            animate={{ scale: 4, opacity: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.8, ease: "easeOut" }}
+            className="absolute z-[15] pointer-events-none size-10 rounded-full border-4 border-primary/40 bg-primary/10"
+            style={{
+              left: '50%',
+              top: '50%',
+              transform: 'translate(-50%, -50%)'
+            }}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Map Control Cluster */}
       <div className="absolute top-24 right-6 z-[20] flex flex-col gap-3">
         <div className="flex flex-col gap-1 items-end">
@@ -628,6 +671,19 @@ const MapScreen: React.FC<MapScreenProps> = ({ currentLocation, onLocationSelect
                 setIsTyping(true);
               }}
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setSearchResults([]);
+                  setShowResults(false);
+                }}
+                className="p-1.5 text-slate-400 hover:text-slate-600 transition-colors mr-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
             <motion.button
               type="button"
               whileHover={{ scale: 1.1 }}
@@ -785,6 +841,19 @@ const MapScreen: React.FC<MapScreenProps> = ({ currentLocation, onLocationSelect
                  History
                </button>
              </div>
+             {showHistory && (
+               <div className="flex bg-slate-100 p-1.5 rounded-2xl ml-2">
+                 {(['aqi', 'carbon', 'both'] as const).map((mode) => (
+                   <button
+                     key={mode}
+                     onClick={() => setHistoryViewMode(mode)}
+                     className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${historyViewMode === mode ? 'bg-white text-primary shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                   >
+                     {mode}
+                   </button>
+                 ))}
+               </div>
+             )}
              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border ${theme.bg} ${theme.bg.replace('bg-', 'bg-opacity-10')} border-white/20`}>
                 <span className="text-[10px] font-black text-white uppercase">{theme.label}</span>
              </div>
@@ -839,16 +908,6 @@ const MapScreen: React.FC<MapScreenProps> = ({ currentLocation, onLocationSelect
                 
                 <div className="flex items-center justify-between mb-4 px-1">
                   <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Historical Trends</span>
-                  <div className="flex gap-2">
-                    <button 
-                      onClick={() => setHistoryViewMode('aqi')}
-                      className={`px-3 py-1 text-[9px] font-black uppercase rounded-lg transition-all ${historyViewMode === 'aqi' ? 'bg-primary text-white' : 'bg-slate-100 text-slate-400'}`}
-                    >AQI Only</button>
-                    <button 
-                      onClick={() => setHistoryViewMode('both')}
-                      className={`px-3 py-1 text-[9px] font-black uppercase rounded-lg transition-all ${historyViewMode === 'both' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-400'}`}
-                    >Comparative</button>
-                  </div>
                 </div>
                 
                 <div className="h-48 w-full bg-slate-50 rounded-2xl p-2 border border-slate-100 mb-6">

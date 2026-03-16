@@ -1,6 +1,15 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { User, HealthDetails, Screen } from '../types';
+import { auth, db } from '../firebase';
+import { 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  signInWithPopup, 
+  GoogleAuthProvider,
+  updateProfile
+} from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
 import { ShieldCheck, Mail, Lock, User as UserIcon, ArrowLeft, Camera, CheckCircle2, MapPin, Navigation, Book, Gamepad2, Volume2, VolumeX } from 'lucide-react';
 import ThreeBackground from '../components/ThreeBackground';
@@ -34,6 +43,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateToStudy, onNavigateToGam
   const [respiratoryConditions, setRespiratoryConditions] = useState<string[]>([]);
   const [pollutionSensitivity, setPollutionSensitivity] = useState<'Low' | 'Medium' | 'High'>('Medium');
   const [ageGroup, setAgeGroup] = useState('Adult (18-64)');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     // Initialize ambient audio
@@ -54,41 +64,36 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateToStudy, onNavigateToGam
     }
   }, [isMuted]);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoginError(false);
     
-    // Simulate wrong password check for "Smart Reactive Environment"
-    if (password === 'wrong') {
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      setIsSuccess(true);
+      setPollutionLevel(0);
+      
+      const successAudio = new Audio('https://assets.mixkit.co/active_storage/sfx/2013/2013-preview.mp3');
+      successAudio.play().catch(() => {});
+
+      // App.tsx onAuthStateChanged will handle the rest
+    } catch (error: any) {
+      console.error(error);
       setLoginError(true);
       setPollutionLevel(prev => Math.min(1, prev + 0.2));
       setTimeout(() => setLoginError(false), 2000);
-      return;
     }
+  };
 
-    setIsSuccess(true);
-    setPollutionLevel(0);
-    
-    // Play success sound
-    const successAudio = new Audio('https://assets.mixkit.co/active_storage/sfx/2013/2013-preview.mp3');
-    successAudio.play().catch(() => {});
-
-    setTimeout(() => {
-      onLogin({
-        name: 'Alex Rivera',
-        email: email || 'alex.rivera@gmail.com',
-        avatar: avatar,
-        isLoggedIn: true,
-        notificationSettings: {
-          emergencyAlerts: true,
-          aqiChanges: true,
-          carbonMilestones: true,
-          weeklyReports: true,
-          healthTips: false,
-          quietHours: { enabled: true, from: '22:00', to: '07:00' },
-          alertSound: 'Siren'
-        }
-      });
-    }, 1500);
+  const handleGoogleLogin = async () => {
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+      setIsSuccess(true);
+      setPollutionLevel(0);
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   const handleGetLocation = () => {
@@ -99,30 +104,46 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateToStudy, onNavigateToGam
     }
   };
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    onLogin({
-      name,
-      email,
-      avatar,
-      isLoggedIn: true,
-      location,
-      healthDetails: {
-        hasAsthma,
-        respiratoryConditions,
-        pollutionSensitivity,
-        ageGroup
-      },
-      notificationSettings: {
-        emergencyAlerts: true,
-        aqiChanges: true,
-        carbonMilestones: true,
-        weeklyReports: true,
-        healthTips: true,
-        quietHours: { enabled: true, from: '22:00', to: '07:00' },
-        alertSound: 'Chime'
-      }
-    });
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const firebaseUser = userCredential.user;
+      
+      await updateProfile(firebaseUser, {
+        displayName: name,
+        photoURL: avatar
+      });
+
+      const newUser: User = {
+        uid: firebaseUser.uid,
+        name,
+        email,
+        avatar,
+        isLoggedIn: true,
+        location,
+        healthDetails: {
+          hasAsthma,
+          respiratoryConditions,
+          pollutionSensitivity,
+          ageGroup
+        },
+        notificationSettings: {
+          emergencyAlerts: true,
+          aqiChanges: true,
+          carbonMilestones: true,
+          weeklyReports: true,
+          healthTips: true,
+          quietHours: { enabled: true, from: '22:00', to: '07:00' },
+          alertSound: 'Chime'
+        }
+      };
+
+      await setDoc(doc(db, 'users', firebaseUser.uid), newUser);
+      // App.tsx onAuthStateChanged will handle the rest
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   const renderLogin = () => (
@@ -192,6 +213,24 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateToStudy, onNavigateToGam
                 Authorized
               </>
             ) : 'Sign In'}
+          </button>
+
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-white/10"></div>
+            </div>
+            <div className="relative flex justify-center text-[10px] uppercase tracking-widest">
+              <span className="px-4 bg-transparent text-white/40 font-black">Or continue with</span>
+            </div>
+          </div>
+
+          <button 
+            type="button"
+            onClick={handleGoogleLogin}
+            className="w-full py-4 rounded-2xl bg-white/5 border border-white/10 text-white font-black text-xs uppercase tracking-widest hover:bg-white/10 transition-all flex items-center justify-center gap-3"
+          >
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" alt="Google" />
+            Google Account
           </button>
         </form>
 
@@ -266,9 +305,25 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateToStudy, onNavigateToGam
                 <div className="w-24 h-24 rounded-[2rem] overflow-hidden border-4 border-white shadow-xl">
                   <img src={avatar} alt="Avatar" className="w-full h-full object-cover" />
                 </div>
+                <input 
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onloadend = () => {
+                        setAvatar(reader.result as string);
+                      };
+                      reader.readAsDataURL(file);
+                    }
+                  }}
+                />
                 <button 
                   type="button"
-                  onClick={() => setAvatar(`https://images.unsplash.com/photo-${Math.floor(Math.random() * 1000000000)}?auto=format&fit=crop&q=80&w=150&h=150`)}
+                  onClick={() => fileInputRef.current?.click()}
                   className="absolute -bottom-2 -right-2 p-2 bg-primary text-white rounded-xl shadow-lg hover:scale-110 transition-transform"
                 >
                   <Camera className="w-4 h-4" />

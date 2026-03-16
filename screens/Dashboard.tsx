@@ -3,7 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { LocationData, User } from '../types';
 import { GoogleGenAI } from "@google/genai";
 import { motion, useScroll, useTransform, AnimatePresence } from 'motion/react';
-import { Wind, ShieldAlert, Activity, Droplets, Thermometer, MapPin, Search, Navigation, Mic } from 'lucide-react';
+import { Wind, ShieldAlert, Activity, Droplets, Thermometer, MapPin, Search, Navigation, Mic, Moon, Sun, Shield } from 'lucide-react';
+import { AppNotification } from '../types';
 
 interface DashboardProps {
   user: User;
@@ -12,6 +13,10 @@ interface DashboardProps {
   onShowEmergency: () => void;
   onViewImpact: () => void;
   onProfileClick: () => void;
+  onAdminClick?: () => void;
+  isDarkMode: boolean;
+  onToggleDarkMode: () => void;
+  onAddNotification: (notif: Omit<AppNotification, 'id' | 'timestamp'>) => void;
 }
 
 interface SearchResult {
@@ -19,7 +24,18 @@ interface SearchResult {
   uri: string;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ user, location, onLocationChange, onShowEmergency, onViewImpact, onProfileClick }) => {
+const Dashboard: React.FC<DashboardProps> = ({ 
+  user, 
+  location, 
+  onLocationChange, 
+  onShowEmergency, 
+  onViewImpact, 
+  onProfileClick,
+  onAdminClick,
+  isDarkMode,
+  onToggleDarkMode,
+  onAddNotification
+}) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isLocating, setIsLocating] = useState(false);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
@@ -190,6 +206,21 @@ const Dashboard: React.FC<DashboardProps> = ({ user, location, onLocationChange,
     return Math.min(100, Math.round(baseScore));
   };
 
+  useEffect(() => {
+    // Simulate push notifications
+    const interval = setInterval(() => {
+      if (location.aqi > 100) {
+        onAddNotification({
+          type: 'warning',
+          title: 'Air Quality Alert',
+          message: `AQI in ${location.name} is ${location.aqi}. Please take precautions.`
+        });
+      }
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [location.aqi, location.name, onAddNotification]);
+
   const riskScore = calculateRiskScore();
 
   const getRiskColor = (score: number) => {
@@ -221,7 +252,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, location, onLocationChange,
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-transparent p-4 relative">
+    <div className="flex flex-col min-h-screen bg-transparent p-4 relative dark:text-slate-100">
       {/* Dynamic Hazardous Banner */}
       <AnimatePresence>
         {isHazardous && (
@@ -246,22 +277,43 @@ const Dashboard: React.FC<DashboardProps> = ({ user, location, onLocationChange,
             animate={{ x: 0, opacity: 1 }}
             className="flex items-center gap-3"
           >
-            <div className="w-12 h-12 rounded-2xl bg-white shadow-xl flex items-center justify-center overflow-hidden border border-slate-100">
+            <div className="w-12 h-12 rounded-2xl bg-white dark:bg-slate-800 shadow-xl flex items-center justify-center overflow-hidden border border-slate-100 dark:border-slate-700">
               <img src={user.avatar} alt="Profile" className="w-full h-full object-cover" />
             </div>
             <div>
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Good Morning</p>
-              <h1 className="text-xl font-black text-slate-900 leading-none mt-1">{user.name.split(' ')[0]}</h1>
+              <h1 className="text-xl font-black text-slate-900 dark:text-white leading-none mt-1">{user.name}</h1>
             </div>
           </motion.div>
-          <motion.button 
-            whileHover={{ scale: 1.1, rotate: 90 }}
-            whileTap={{ scale: 0.9 }}
-            onClick={onProfileClick}
-            className="w-12 h-12 rounded-2xl bg-white shadow-xl flex items-center justify-center border border-slate-100 text-slate-400 hover:text-primary transition-colors"
-          >
-            <span className="material-symbols-outlined">settings</span>
-          </motion.button>
+          <div className="flex items-center gap-2">
+            <motion.button 
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              onClick={onToggleDarkMode}
+              className="w-12 h-12 rounded-2xl bg-white dark:bg-slate-800 shadow-xl flex items-center justify-center border border-slate-100 dark:border-slate-700 text-slate-400 hover:text-primary transition-colors"
+            >
+              {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            </motion.button>
+            <motion.button 
+              whileHover={{ scale: 1.1, rotate: 90 }}
+              whileTap={{ scale: 0.9 }}
+              onClick={onProfileClick}
+              className="w-12 h-12 rounded-2xl bg-white dark:bg-slate-800 shadow-xl flex items-center justify-center border border-slate-100 dark:border-slate-700 text-slate-400 hover:text-primary transition-colors"
+            >
+              <span className="material-symbols-outlined">settings</span>
+            </motion.button>
+            {user.role === 'admin' && (
+              <motion.button 
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={onAdminClick}
+                className="w-12 h-12 rounded-2xl bg-primary text-white shadow-xl flex items-center justify-center border border-primary transition-colors"
+                title="Admin Control"
+              >
+                <Shield className="w-5 h-5" />
+              </motion.button>
+            )}
+          </div>
         </div>
 
         <div className="flex gap-2">
@@ -284,7 +336,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, location, onLocationChange,
             onKeyDown={(e) => {
               if (e.key === 'Enter') handleSearch();
             }}
-            className="w-full pl-12 pr-24 py-4 bg-white rounded-[2rem] shadow-xl border border-slate-100 focus:ring-4 focus:ring-primary/5 outline-none font-bold text-slate-800 transition-all placeholder:text-slate-400"
+            className="w-full pl-12 pr-24 py-4 bg-white dark:bg-slate-800 rounded-[2rem] shadow-xl border border-slate-100 dark:border-slate-700 focus:ring-4 focus:ring-primary/5 outline-none font-bold text-slate-800 dark:text-white transition-all placeholder:text-slate-400"
           />
           <div className="absolute inset-y-0 right-4 flex items-center gap-2">
             <motion.button
@@ -353,7 +405,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, location, onLocationChange,
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ delay: 0.2, type: "spring", stiffness: 100 }}
-        className="relative bg-white rounded-[3rem] p-8 shadow-[0_32px_64px_-12px_rgba(0,0,0,0.1)] border border-slate-100 overflow-hidden group"
+        className="relative bg-white dark:bg-slate-800 rounded-[3rem] p-8 shadow-[0_32px_64px_-12px_rgba(0,0,0,0.1)] border border-slate-100 dark:border-slate-700 overflow-hidden group"
       >
         {/* Background Image based on AQI */}
         <div className="absolute inset-0 opacity-5 pointer-events-none transition-opacity duration-1000 group-hover:opacity-10">
@@ -397,7 +449,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, location, onLocationChange,
             <motion.div 
               animate={{ scale: [1, 1.05, 1] }}
               transition={{ repeat: Infinity, duration: 4 }}
-              className="text-8xl font-black text-slate-900 tracking-tighter"
+              className="text-8xl font-black text-slate-900 dark:text-white tracking-tighter"
             >
               {location.aqi}
             </motion.div>
@@ -414,27 +466,27 @@ const Dashboard: React.FC<DashboardProps> = ({ user, location, onLocationChange,
             {location.aqi <= 50 ? 'Healthy Air' : location.aqi <= 100 ? 'Moderate' : 'Unhealthy'}
           </div>
 
-          <div className="grid grid-cols-3 gap-8 w-full border-t border-slate-50 pt-8">
+          <div className="grid grid-cols-3 gap-8 w-full border-t border-slate-50 dark:border-slate-700 pt-8">
             <div className="flex flex-col items-center">
-              <div className="w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center text-blue-500 mb-2">
+              <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-500 mb-2">
                 <Droplets className="w-5 h-5" />
               </div>
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Humidity</p>
-              <p className="text-sm font-black text-slate-800">42%</p>
+              <p className="text-sm font-black text-slate-800 dark:text-slate-200">42%</p>
             </div>
             <div className="flex flex-col items-center">
-              <div className="w-10 h-10 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-500 mb-2">
+              <div className="w-10 h-10 rounded-2xl bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center text-amber-500 mb-2">
                 <Thermometer className="w-5 h-5" />
               </div>
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Temp</p>
-              <p className="text-sm font-black text-slate-800">24°C</p>
+              <p className="text-sm font-black text-slate-800 dark:text-slate-200">24°C</p>
             </div>
             <div className="flex flex-col items-center">
-              <div className="w-10 h-10 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-500 mb-2">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-500 mb-2">
                 <Wind className="w-5 h-5" />
               </div>
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Wind</p>
-              <p className="text-sm font-black text-slate-800">12m/s</p>
+              <p className="text-sm font-black text-slate-800 dark:text-slate-200">12m/s</p>
             </div>
           </div>
         </div>
@@ -445,18 +497,18 @@ const Dashboard: React.FC<DashboardProps> = ({ user, location, onLocationChange,
         initial={{ x: -20, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
         transition={{ delay: 0.3 }}
-        className="mt-6 bg-white rounded-[2.5rem] p-6 shadow-xl border border-slate-100 relative overflow-hidden group"
+        className="mt-6 bg-white dark:bg-slate-800 rounded-[2.5rem] p-6 shadow-xl border border-slate-100 dark:border-slate-700 relative overflow-hidden group"
       >
         <div className="flex justify-between items-center mb-4">
           <div>
-            <h3 className="text-slate-900 font-black text-lg leading-tight">Personal Risk Score</h3>
+            <h3 className="text-slate-900 dark:text-white font-black text-lg leading-tight">Personal Risk Score</h3>
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Based on your profile</p>
           </div>
           <div className={`text-3xl font-black ${getRiskColor(riskScore)}`}>
             {riskScore}<span className="text-xs opacity-50 ml-1">/100</span>
           </div>
         </div>
-        <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
+        <div className="w-full h-3 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
           <motion.div 
             initial={{ width: 0 }}
             animate={{ width: `${riskScore}%` }}
@@ -467,8 +519,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, location, onLocationChange,
             }`}
           />
         </div>
-        <p className="text-[10px] font-medium text-slate-500 mt-3 leading-relaxed">
-          Your risk is <span className="font-bold text-slate-700">{riskScore < 30 ? 'Low' : riskScore < 60 ? 'Moderate' : 'High'}</span> today. {getPersonalizedAdvice()}
+        <p className="text-[10px] font-medium text-slate-500 dark:text-slate-400 mt-3 leading-relaxed">
+          Your risk is <span className="font-bold text-slate-700 dark:text-slate-200">{riskScore < 30 ? 'Low' : riskScore < 60 ? 'Moderate' : 'High'}</span> today. {getPersonalizedAdvice()}
         </p>
       </motion.div>
 
@@ -493,9 +545,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, location, onLocationChange,
           whileHover={{ y: -5, scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
           onClick={onShowEmergency}
-          className="bg-white text-slate-900 p-6 rounded-[2.5rem] shadow-xl border border-slate-100 flex flex-col gap-3 group"
+          className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white p-6 rounded-[2.5rem] shadow-xl border border-slate-100 dark:border-slate-700 flex flex-col gap-3 group"
         >
-          <div className="w-10 h-10 bg-rose-50 rounded-2xl flex items-center justify-center text-rose-500 group-hover:scale-110 transition-transform">
+          <div className="w-10 h-10 bg-rose-50 dark:bg-rose-900/30 rounded-2xl flex items-center justify-center text-rose-500 group-hover:scale-110 transition-transform">
             <ShieldAlert className="w-5 h-5" />
           </div>
           <div className="text-left">
