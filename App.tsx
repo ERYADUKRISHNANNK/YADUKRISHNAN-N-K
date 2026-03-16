@@ -101,16 +101,27 @@ const App: React.FC = () => {
         const userRef = doc(db, 'users', firebaseUser.uid);
         const userSnap = await getDoc(userRef);
         
+        let userData: User;
+        const isAdminEmail = firebaseUser.email === 'eryadukrishnannnk@gmail.com';
+
         if (userSnap.exists()) {
-          setUser(userSnap.data() as User);
+          userData = userSnap.data() as User;
+          // Ensure role is updated if it's the admin email
+          if (isAdminEmail && userData.role !== 'admin') {
+            userData.role = 'admin';
+            await setDoc(userRef, { role: 'admin' }, { merge: true });
+          }
         } else {
           // Create default profile if not exists
-          const newUser: User = {
+          userData = {
             uid: firebaseUser.uid,
             name: firebaseUser.displayName || 'New User',
             email: firebaseUser.email || '',
             avatar: firebaseUser.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=150&h=150',
             isLoggedIn: true,
+            role: isAdminEmail ? 'admin' : 'user',
+            status: 'active',
+            createdAt: Date.now(),
             notificationSettings: {
               emergencyAlerts: true,
               aqiChanges: true,
@@ -121,11 +132,18 @@ const App: React.FC = () => {
               alertSound: 'Chime'
             }
           };
-          await setDoc(userRef, newUser);
-          setUser(newUser);
+          await setDoc(userRef, userData);
+        }
+        
+        setUser(userData);
+        // Redirect to Admin Dashboard if admin or co-admin logs in
+        if (userData.role === 'admin' || userData.role === 'co-admin') {
+          setCurrentScreen(Screen.ADMIN);
+        } else {
+          setCurrentScreen(Screen.DASHBOARD);
         }
       } else {
-        setUser(prev => ({ ...prev, isLoggedIn: false }));
+        setUser(prev => ({ ...prev, isLoggedIn: false, role: 'user' }));
       }
       setIsAuthReady(true);
     });

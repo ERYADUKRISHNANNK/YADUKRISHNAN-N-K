@@ -76,8 +76,18 @@ export interface User {
   notificationSettings: NotificationSettings;
   healthDetails?: HealthDetails;
   location?: string;
-  role?: 'user' | 'admin';
+  role?: 'user' | 'admin' | 'co-admin';
+  status?: 'active' | 'suspended' | 'banned';
   preferredLocations?: PreferredLocation[];
+  createdAt?: number;
+}
+
+export interface AISettings {
+  modelName: string;
+  temperature: number;
+  maxTokens: number;
+  systemInstruction: string;
+  enableGrounding: boolean;
 }
 
 export interface AdminStats {

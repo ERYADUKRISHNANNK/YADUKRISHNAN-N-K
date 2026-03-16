@@ -11,7 +11,7 @@ import {
 } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShieldCheck, Mail, Lock, User as UserIcon, ArrowLeft, Camera, CheckCircle2, MapPin, Navigation, Book, Gamepad2, Volume2, VolumeX } from 'lucide-react';
+import { ShieldCheck, Shield, Mail, Lock, User as UserIcon, ArrowLeft, Camera, CheckCircle2, MapPin, Navigation, Book, Gamepad2, Volume2, VolumeX } from 'lucide-react';
 import ThreeBackground from '../components/ThreeBackground';
 
 interface AuthProps {
@@ -20,7 +20,7 @@ interface AuthProps {
   onNavigateToGame?: () => void;
 }
 
-type AuthView = 'LOGIN' | 'REGISTER' | 'FORGOT_PASSWORD';
+type AuthView = 'LOGIN' | 'REGISTER' | 'FORGOT_PASSWORD' | 'ADMIN_PORTAL';
 
 const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateToStudy, onNavigateToGame }) => {
   const [view, setView] = useState<AuthView>('LOGIN');
@@ -69,6 +69,16 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateToStudy, onNavigateToGam
     setLoginError(false);
     
     try {
+      // Check for specific admin credentials if in admin portal
+      if (view === 'ADMIN_PORTAL') {
+        if (email === 'eryadukrishnannnk@gmail.com' && password === 'yadu9645@') {
+          // Proceed with standard login but we know it's the admin
+        } else {
+          alert('Invalid Admin Credentials');
+          return;
+        }
+      }
+
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       setIsSuccess(true);
       setPollutionLevel(0);
@@ -215,6 +225,17 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateToStudy, onNavigateToGam
             ) : 'Sign In'}
           </button>
 
+          <button 
+            type="button"
+            onClick={() => {
+              setEmail('eryadukrishnannk@gmail.com');
+              setPassword('yadu9645@');
+            }}
+            className="w-full py-2 rounded-xl bg-primary/10 border border-primary/20 text-primary font-black text-[10px] uppercase tracking-widest hover:bg-primary/20 transition-all mt-2"
+          >
+            Fill Admin Credentials
+          </button>
+
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-white/10"></div>
@@ -259,7 +280,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateToStudy, onNavigateToGam
         </div>
       </div>
 
-      <div className="mt-12 text-center">
+      <div className="mt-12 text-center flex flex-col gap-4">
         <p className="text-white/40 text-xs font-bold">
           New to AirGuard? {' '}
           <button 
@@ -269,6 +290,12 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateToStudy, onNavigateToGam
             Create Account
           </button>
         </p>
+        <button 
+          onClick={() => setView('ADMIN_PORTAL')}
+          className="text-white/20 hover:text-white/40 text-[10px] font-black uppercase tracking-[0.3em] transition-colors"
+        >
+          Admin Portal
+        </button>
       </div>
     </motion.div>
   );
@@ -536,6 +563,62 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateToStudy, onNavigateToGam
     </motion.div>
   );
 
+  const renderAdminPortal = () => (
+    <motion.div 
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className="flex flex-col p-6 h-full justify-center relative z-10"
+    >
+      <div className="mb-10 text-center">
+        <div className="inline-flex items-center justify-center w-24 h-24 rounded-[2.5rem] bg-primary/20 backdrop-blur-2xl shadow-2xl mb-6 border border-primary/30">
+          <Shield className="w-12 h-12 text-primary" />
+        </div>
+        <h1 className="text-4xl font-black text-white tracking-tighter mb-2">Admin Portal</h1>
+        <p className="text-primary/60 font-black uppercase tracking-[0.4em] text-[10px]">Restricted Access Only</p>
+      </div>
+
+      <div className="bg-white/10 backdrop-blur-3xl p-8 rounded-[3rem] border border-white/20 shadow-2xl">
+        <form onSubmit={handleLogin} className="space-y-4">
+          <div className="relative group">
+            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40 group-focus-within:text-primary transition-colors" />
+            <input 
+              type="email" 
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full pl-12 pr-4 py-4 rounded-2xl bg-white/5 border border-white/10 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all outline-none font-bold text-white placeholder:text-white/30"
+              placeholder="Admin Email"
+            />
+          </div>
+          <div className="relative group">
+            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40 group-focus-within:text-primary transition-colors" />
+            <input 
+              type="password" 
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full pl-12 pr-4 py-4 rounded-2xl bg-white/5 border border-white/10 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all outline-none font-bold text-white placeholder:text-white/30"
+              placeholder="Admin Password"
+            />
+          </div>
+          <button 
+            type="submit"
+            className="w-full py-5 bg-primary text-white rounded-2xl font-black uppercase tracking-[0.2em] text-xs shadow-2xl shadow-primary/30 hover:scale-[1.02] active:scale-[0.98] transition-all mt-6"
+          >
+            Authenticate Admin
+          </button>
+          <button 
+            type="button"
+            onClick={() => setView('LOGIN')}
+            className="w-full py-4 text-white/40 font-black text-[10px] uppercase tracking-widest hover:text-white transition-colors"
+          >
+            Return to User Login
+          </button>
+        </form>
+      </div>
+    </motion.div>
+  );
+
   return (
     <div className="h-full bg-slate-950 relative overflow-hidden">
       <ThreeBackground pollutionLevel={pollutionLevel} isSuccess={isSuccess} />
@@ -552,6 +635,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateToStudy, onNavigateToGam
         {view === 'LOGIN' && <div key="login" className="h-full">{renderLogin()}</div>}
         {view === 'REGISTER' && <div key="register" className="h-full">{renderRegister()}</div>}
         {view === 'FORGOT_PASSWORD' && <div key="forgot" className="h-full">{renderForgotPassword()}</div>}
+        {view === 'ADMIN_PORTAL' && <div key="admin" className="h-full">{renderAdminPortal()}</div>}
       </AnimatePresence>
     </div>
   );
